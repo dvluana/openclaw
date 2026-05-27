@@ -1,25 +1,23 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# OpenClaw OAuth Sync Widget
-# Syncs Claude Code tokens to OpenClaw on l36 server
+# OpenClaw Auth Status Widget
+# Checks Claude Code auth on the OpenClaw server and restarts the gateway
+# when auth is healthy. Interactive re-auth is handled by mobile-reauth.sh.
 # Place in ~/.shortcuts/ on phone for Termux:Widget
 
-termux-toast "Syncing OpenClaw auth..."
+termux-toast "Checking OpenClaw auth..."
 
-# Run sync on l36 server
 SERVER="${OPENCLAW_SERVER:-l36}"
-RESULT=$(ssh "$SERVER" '/home/admin/openclaw/scripts/sync-claude-code-auth.sh' 2>&1)
+RESULT=$(ssh "$SERVER" '$HOME/openclaw/scripts/claude-auth-status.sh simple' 2>&1)
 EXIT_CODE=$?
 
-if [ $EXIT_CODE -eq 0 ]; then
-    # Extract expiry time from output
-    EXPIRY=$(echo "$RESULT" | grep "Token expires:" | cut -d: -f2-)
-
+if [ $EXIT_CODE -eq 0 ] && [ "$RESULT" = "OK" ]; then
+    DETAILS=$(ssh "$SERVER" '$HOME/openclaw/scripts/claude-auth-status.sh json' 2>&1)
+    HOURS=$(echo "$DETAILS" | jq -r '.claude_code.status' | grep -oP '\d+(?=h)' || echo "?")
+    ssh "$SERVER" 'openclaw gateway restart' >/dev/null 2>&1 || true
     termux-vibrate -d 100
-    termux-toast "OpenClaw synced! Expires:${EXPIRY}"
-
-    # Optional: restart openclaw service
-    ssh "$SERVER" 'systemctl --user restart openclaw' 2>/dev/null
+    termux-toast "OpenClaw auth OK (${HOURS}h)"
 else
     termux-vibrate -d 300
-    termux-toast "Sync failed: ${RESULT}"
+    termux-toast "Auth needs check: ${RESULT}"
+    termux-notification -t "OpenClaw Re-Auth" -c "Run: ssh $SERVER '~/openclaw/scripts/mobile-reauth.sh'" --id openclaw-auth
 fi
