@@ -1888,6 +1888,23 @@ describe("memory cli", () => {
         status: () => makeMemoryStatus({ workspaceDir }),
         close,
       });
+      loadConfig.mockReturnValueOnce({
+        plugins: {
+          entries: {
+            "memory-core": {
+              config: {
+                dreaming: {
+                  phases: {
+                    deep: {
+                      maxAgeDays: 90,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
 
       const log = spyRuntimeLogs(defaultRuntime);
       await runMemoryCli([
