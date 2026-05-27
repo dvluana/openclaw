@@ -3,7 +3,7 @@
 # Run via cron or systemd timer to get proactive notifications
 # before Claude Code auth expires.
 #
-# Suggested cron: */30 * * * * /home/admin/openclaw/scripts/auth-monitor.sh
+# Suggested cron: */30 * * * * ~/openclaw/scripts/auth-monitor.sh
 #
 # Environment variables:
 #   NOTIFY_PHONE - Phone number to send OpenClaw notification (e.g., +1234567890)
@@ -46,7 +46,7 @@ send_notification() {
         # Check if we can still use openclaw
         if "$SCRIPT_DIR/claude-auth-status.sh" simple 2>/dev/null | grep -q "OK\|EXPIRING"; then
             echo "Sending via OpenClaw to $NOTIFY_PHONE..."
-            openclaw send --to "$NOTIFY_PHONE" --message "$message" 2>/dev/null || true
+            openclaw message send --channel whatsapp --target "$NOTIFY_PHONE" --message "$message" 2>/dev/null || true
         fi
     fi
 
