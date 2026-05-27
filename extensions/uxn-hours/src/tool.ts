@@ -18,6 +18,7 @@ type SecretRef = {
 type UxnHoursPluginConfig = {
   baseUrl?: string;
   token?: string | SecretRef;
+  timezone?: string;
   requireConfirmationForCreate?: boolean;
 };
 
@@ -87,8 +88,35 @@ function resolveClient(options: UxnHoursToolOptions) {
   });
 }
 
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+function resolveTimezone(options: UxnHoursToolOptions): string {
+  return (
+    options.pluginConfig?.timezone?.trim() ||
+    process.env.UXN_GESTAO_TIMEZONE?.trim() ||
+    process.env.TZ?.trim() ||
+    "America/Sao_Paulo"
+  );
+}
+
+function dateKeyInTimezone(date: Date, timezone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value;
+  const year = part("year");
+  const month = part("month");
+  const day = part("day");
+  if (!year || !month || !day) {
+    throw new Error(`Could not format date for timezone ${timezone}.`);
+  }
+  return `${year}-${month}-${day}`;
+}
+
+function todayKey(timezone: string) {
+  return dateKeyInTimezone(new Date(), timezone);
 }
 
 function monthRange(monthKey: string) {
@@ -102,8 +130,8 @@ function monthRange(monthKey: string) {
   };
 }
 
-function currentMonthKey() {
-  return new Date().toISOString().slice(0, 7);
+function currentMonthKey(timezone: string) {
+  return todayKey(timezone).slice(0, 7);
 }
 
 function cleanIdList(value: unknown): string[] {
@@ -260,6 +288,7 @@ export function createUxnHoursTool(options: UxnHoursToolOptions = {}): AnyAgentT
       const params = (args ?? {}) as Record<string, unknown>;
       const action = readStringParam(params, "action", { required: true });
       const api = resolveClient(options);
+      const timezone = resolveTimezone(options);
 
       if (action === "list_clients") {
         return jsonResult({ ok: true, clients: await api.listClients() });
@@ -277,12 +306,12 @@ export function createUxnHoursTool(options: UxnHoursToolOptions = {}): AnyAgentT
         return jsonResult({ ok: true, entries, summary: summarizeEntries(entries) });
       }
       if (action === "summarize_day") {
-        const date = readStringParam(params, "workDate") ?? todayKey();
+        const date = readStringParam(params, "workDate") ?? todayKey(timezone);
         const entries = await api.listEntries({ from: date, to: date });
         return jsonResult({ ok: true, date, entries, summary: summarizeEntries(entries) });
       }
       if (action === "summarize_month") {
-        const range = monthRange(readStringParam(params, "month") ?? currentMonthKey());
+        const range = monthRange(readStringParam(params, "month") ?? currentMonthKey(timezone));
         const entries = await api.listEntries(range);
         return jsonResult({ ok: true, ...range, entries, summary: summarizeEntries(entries) });
       }
@@ -336,7 +365,7 @@ export function createUxnHoursTool(options: UxnHoursToolOptions = {}): AnyAgentT
         }
 
         const activity = readStringParam(params, "activity", { required: true });
-        const workDate = readStringParam(params, "workDate") ?? todayKey();
+        const workDate = readStringParam(params, "workDate") ?? todayKey(timezone);
         const durationMinutes =
           typeof params.durationMinutes === "number" && Number.isFinite(params.durationMinutes)
             ? Math.trunc(params.durationMinutes)

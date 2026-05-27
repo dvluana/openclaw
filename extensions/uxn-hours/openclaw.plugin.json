@@ -53,6 +53,10 @@
       "token": {
         "$ref": "#/$defs/secretInput"
       },
+      "timezone": {
+        "type": "string",
+        "default": "America/Sao_Paulo"
+      },
       "requireConfirmationForCreate": {
         "type": "boolean",
         "default": true

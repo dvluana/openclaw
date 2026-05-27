@@ -18,6 +18,7 @@ Environment:
 ```bash
 UXN_GESTAO_API_URL=http://localhost:3002
 UXN_GESTAO_PAT=uxn_pat_...
+UXN_GESTAO_TIMEZONE=America/Sao_Paulo
 ```
 
 OpenClaw config:
@@ -30,6 +31,7 @@ OpenClaw config:
         "config": {
           "baseUrl": "http://localhost:3002",
           "token": { "source": "env", "provider": "process", "id": "UXN_GESTAO_PAT" },
+          "timezone": "America/Sao_Paulo",
           "requireConfirmationForCreate": true
         }
       }
@@ -79,4 +81,6 @@ Minimal runtime requirements:
 
 - `uxn-painel-web` reachable at `UXN_GESTAO_API_URL`
 - a valid `UXN_GESTAO_PAT`
+- timezone configured for local words such as "hoje"; defaults to
+  `America/Sao_Paulo`
 - the OpenClaw agent that receives WhatsApp messages allowed to use `uxn_hours`

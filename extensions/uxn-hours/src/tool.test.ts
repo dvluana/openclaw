@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createUxnHoursTool } from "./tool.js";
 
 function response(body: unknown, status = 200) {
@@ -37,6 +37,10 @@ const projects = [
 ];
 
 describe("UXN Hours tool", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("requires confirmation before creating entries by default", async () => {
     const tool = createUxnHoursTool({
       pluginConfig: {
@@ -120,5 +124,40 @@ describe("UXN Hours tool", () => {
       duration: "2h",
       message: "Lancado 2h para Loumar.",
     });
+  });
+
+  it("uses the configured timezone for default day and month actions", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-01T02:30:00.000Z"));
+
+    const requestedUrls: string[] = [];
+    const tool = createUxnHoursTool({
+      pluginConfig: {
+        token: "uxn_pat_test",
+        timezone: "America/Sao_Paulo",
+      },
+      fetchImpl: async (url) => {
+        requestedUrls.push(String(url));
+        return response([]);
+      },
+    });
+
+    const dayResult = await tool.execute("call-1", {
+      action: "summarize_day",
+    });
+    const monthResult = await tool.execute("call-2", {
+      action: "summarize_month",
+    });
+
+    expect(dayResult.details).toMatchObject({ ok: true, date: "2026-04-30" });
+    expect(monthResult.details).toMatchObject({
+      ok: true,
+      from: "2026-04-01",
+      to: "2026-04-30",
+    });
+    expect(requestedUrls).toEqual([
+      "http://localhost:3002/api/v1/time-entries?from=2026-04-30&to=2026-04-30",
+      "http://localhost:3002/api/v1/time-entries?from=2026-04-01&to=2026-04-30",
+    ]);
   });
 });
