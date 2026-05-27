@@ -1,0 +1,42 @@
+{
+  "name": "@openclaw/uxn-hours",
+  "version": "2026.5.26",
+  "description": "UXN Gestao hours tool for OpenClaw agents",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dvluana/openclaw"
+  },
+  "type": "module",
+  "dependencies": {
+    "typebox": "1.1.38"
+  },
+  "devDependencies": {
+    "@openclaw/plugin-sdk": "workspace:*",
+    "openclaw": "workspace:*"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.5.26"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "install": {
+      "npmSpec": "@openclaw/uxn-hours",
+      "localPath": "extensions/uxn-hours",
+      "defaultChoice": "local",
+      "minHostVersion": ">=2026.5.26"
+    },
+    "compat": {
+      "pluginApi": ">=2026.5.26"
+    },
+    "build": {
+      "openclawVersion": "2026.5.26"
+    }
+  }
+}

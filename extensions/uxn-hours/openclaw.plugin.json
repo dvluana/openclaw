@@ -1,0 +1,62 @@
+{
+  "id": "uxn-hours",
+  "activation": {
+    "onStartup": true
+  },
+  "name": "UXN Hours",
+  "description": "Agent tool for UXN Gestao hours, clients, projects, tags, and time entries.",
+  "contracts": {
+    "tools": ["uxn_hours"]
+  },
+  "toolMetadata": {
+    "uxn_hours": {
+      "optional": false
+    }
+  },
+  "uiHints": {
+    "baseUrl": {
+      "label": "UXN Gestao API URL",
+      "placeholder": "http://localhost:3002",
+      "help": "Base URL for uxn-painel-web. The tool calls /api/v1 using a Personal Access Token."
+    },
+    "token": {
+      "label": "UXN Gestao Personal Access Token",
+      "help": "Bearer token with uxn_pat_ prefix. Prefer a secret reference or UXN_GESTAO_PAT."
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "$defs": {
+      "secretRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": ["env", "file", "exec"]
+          },
+          "provider": { "type": "string" },
+          "id": { "type": "string" }
+        },
+        "required": ["source", "provider", "id"]
+      },
+      "secretInput": {
+        "anyOf": [{ "type": "string", "minLength": 1 }, { "$ref": "#/$defs/secretRef" }]
+      }
+    },
+    "properties": {
+      "baseUrl": {
+        "type": "string",
+        "default": "http://localhost:3002"
+      },
+      "token": {
+        "$ref": "#/$defs/secretInput"
+      },
+      "requireConfirmationForCreate": {
+        "type": "boolean",
+        "default": true
+      }
+    }
+  }
+}
