@@ -1,0 +1,42 @@
+{
+  "name": "@openclaw/uxn-clickup",
+  "version": "2026.5.26",
+  "description": "Restricted ClickUp tool for UXNaut agents",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dvluana/openclaw"
+  },
+  "type": "module",
+  "dependencies": {
+    "typebox": "1.1.38"
+  },
+  "devDependencies": {
+    "@openclaw/plugin-sdk": "workspace:*",
+    "openclaw": "workspace:*"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.5.26"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "install": {
+      "npmSpec": "@openclaw/uxn-clickup",
+      "localPath": "extensions/uxn-clickup",
+      "defaultChoice": "local",
+      "minHostVersion": ">=2026.5.26"
+    },
+    "compat": {
+      "pluginApi": ">=2026.5.26"
+    },
+    "build": {
+      "openclawVersion": "2026.5.26"
+    }
+  }
+}

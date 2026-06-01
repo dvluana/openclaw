@@ -1,0 +1,68 @@
+{
+  "id": "uxn-clickup",
+  "activation": {
+    "onStartup": true
+  },
+  "name": "UXN ClickUp",
+  "description": "Restricted ClickUp API tool for UXNaut task lookup and status updates.",
+  "contracts": {
+    "tools": ["uxn_clickup"]
+  },
+  "toolMetadata": {
+    "uxn_clickup": {
+      "optional": false
+    }
+  },
+  "uiHints": {
+    "configPath": {
+      "label": "ClickUp sync config path",
+      "placeholder": "/home/luana/.openclaw/workspace-uxnaut/skills/clickup-sync/config.json"
+    },
+    "token": {
+      "label": "ClickUp token",
+      "help": "Prefer CLICKUP_TOKEN from env or the existing credentials file."
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "$defs": {
+      "secretRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": ["env", "file"]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": ["source", "id"]
+      },
+      "secretInput": {
+        "anyOf": [{ "type": "string", "minLength": 1 }, { "$ref": "#/$defs/secretRef" }]
+      }
+    },
+    "properties": {
+      "apiBase": {
+        "type": "string",
+        "default": "https://api.clickup.com/api/v2"
+      },
+      "configPath": {
+        "type": "string"
+      },
+      "token": {
+        "$ref": "#/$defs/secretInput"
+      },
+      "credentialsPath": {
+        "type": "string",
+        "default": "/home/luana/.openclaw/credentials/clickup/env"
+      }
+    }
+  }
+}

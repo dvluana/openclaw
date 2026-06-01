@@ -16,7 +16,8 @@ import { maybeSendAckReaction } from "./ack-reaction.js";
 import { maybeBroadcastMessage } from "./broadcast.js";
 import type { EchoTracker } from "./echo.js";
 import type { GroupHistoryEntry } from "./group-gating.js";
-import { applyGroupGating } from "./group-gating.js";
+import { applyGroupGating, recordGroupHistoryEntry } from "./group-gating.js";
+import type { GroupHistoryStore } from "./inbound-context.js";
 import { updateLastRouteInBackground } from "./last-route.js";
 import { resolvePeerId } from "./peer.js";
 import { processMessage } from "./process-message.js";
@@ -33,6 +34,7 @@ export function createWebOnMessageHandler(params: {
   maxMediaBytes: number;
   groupHistoryLimit: number;
   groupHistories: Map<string, GroupHistoryEntry[]>;
+  groupHistoryStore?: GroupHistoryStore;
   groupMemberNames: Map<string, Map<string, string>>;
   echoTracker: EchoTracker;
   backgroundTasks: Set<Promise<unknown>>;
@@ -253,6 +255,7 @@ export function createWebOnMessageHandler(params: {
         authDir: account.authDir,
         selfChatMode: account.selfChatMode,
         groupHistories: params.groupHistories,
+        groupHistoryStore: params.groupHistoryStore,
         groupHistoryLimit: params.groupHistoryLimit,
         groupMemberNames: params.groupMemberNames,
         logVerbose,
@@ -278,6 +281,7 @@ export function createWebOnMessageHandler(params: {
           authDir: account.authDir,
           selfChatMode: account.selfChatMode,
           groupHistories: params.groupHistories,
+          groupHistoryStore: params.groupHistoryStore,
           groupHistoryLimit: params.groupHistoryLimit,
           groupMemberNames: params.groupMemberNames,
           logVerbose,
@@ -287,6 +291,14 @@ export function createWebOnMessageHandler(params: {
       if (!gating.shouldProcess) {
         return;
       }
+      recordGroupHistoryEntry({
+        msg,
+        body: typeof preflightAudioTranscript === "string" ? preflightAudioTranscript : undefined,
+        groupHistories: params.groupHistories,
+        groupHistoryStore: params.groupHistoryStore,
+        groupHistoryKey,
+        groupHistoryLimit: params.groupHistoryLimit,
+      });
     } else {
       // Ensure `peerId` for DMs is stable and stored as E.164 when possible.
       if (!msg.sender?.e164 && !msg.senderE164 && peerId && peerId.startsWith("+")) {

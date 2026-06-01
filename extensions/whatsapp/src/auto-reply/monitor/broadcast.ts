@@ -145,9 +145,5 @@ export async function maybeBroadcastMessage(params: {
     await Promise.allSettled(broadcastAgents.map(processForAgent));
   }
 
-  if (params.msg.chatType === "group") {
-    params.groupHistories.set(params.groupHistoryKey, []);
-  }
-
   return true;
 }

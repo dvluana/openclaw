@@ -22,6 +22,7 @@ import {
   resolveInboundMentionDecision,
 } from "./group-gating.runtime.js";
 import { noteGroupMember } from "./group-members.js";
+import type { GroupHistoryStore } from "./inbound-context.js";
 
 export type GroupHistoryEntry = {
   sender: string;
@@ -43,6 +44,7 @@ type ApplyGroupGatingParams = {
   baseMentionConfig: MentionConfig;
   authDir?: string;
   groupHistories: Map<string, GroupHistoryEntry[]>;
+  groupHistoryStore?: GroupHistoryStore;
   groupHistoryLimit: number;
   groupMemberNames: Map<string, Map<string, string>>;
   selfChatMode?: boolean;
@@ -84,13 +86,18 @@ function isOwnerSender(baseMentionConfig: MentionConfig, msg: WebInboundMsg) {
   return owners.includes(sender);
 }
 
-function recordPendingGroupHistoryEntry(params: {
+export function recordGroupHistoryEntry(params: {
   msg: WebInboundMsg;
   body?: string;
   groupHistories: Map<string, GroupHistoryEntry[]>;
+  groupHistoryStore?: GroupHistoryStore;
   groupHistoryKey: string;
   groupHistoryLimit: number;
 }) {
+  const body = params.body ?? params.msg.body;
+  if (!body.trim() || /^<media:[^>]+>$/.test(body.trim())) {
+    return;
+  }
   const senderIdentity = getSenderIdentity(params.msg);
   const sender =
     senderIdentity.name && senderIdentity.e164
@@ -104,12 +111,13 @@ function recordPendingGroupHistoryEntry(params: {
     limit: params.groupHistoryLimit,
     entry: {
       sender,
-      body: params.body ?? params.msg.body,
+      body,
       timestamp: params.msg.timestamp,
       id: params.msg.id,
       senderJid: senderIdentity.jid ?? params.msg.senderJid,
     },
   });
+  void params.groupHistoryStore?.save(params.groupHistories);
 }
 
 function skipGroupMessageAndStoreHistory(
@@ -118,10 +126,11 @@ function skipGroupMessageAndStoreHistory(
   body?: string,
 ) {
   params.logVerbose(verboseMessage);
-  recordPendingGroupHistoryEntry({
+  recordGroupHistoryEntry({
     msg: params.msg,
     body,
     groupHistories: params.groupHistories,
+    groupHistoryStore: params.groupHistoryStore,
     groupHistoryKey: params.groupHistoryKey,
     groupHistoryLimit: params.groupHistoryLimit,
   });

@@ -100,7 +100,7 @@ vi.mock("./inbound-context.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./inbound-context.js")>();
   return {
     ...actual,
-    resolveVisibleWhatsAppGroupHistory: () => [],
+    resolveVisibleWhatsAppGroupHistory: (params: { history: unknown[] }) => params.history,
     resolveVisibleWhatsAppReplyContext: () => null,
   };
 });
@@ -123,7 +123,16 @@ vi.mock("./runtime-api.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./runtime-api.js")>();
   return {
     ...actual,
-    buildHistoryContextFromEntries: () => "hi",
+    buildHistoryContextFromEntries: (params: {
+      entries: Array<{ sender: string; body: string }>;
+      currentMessage: string;
+    }) =>
+      [
+        "[Chat messages since your last reply - for context]",
+        ...params.entries.map((entry) => `${entry.sender}: ${entry.body}`),
+        "[Current message - respond to this]",
+        params.currentMessage,
+      ].join("\n"),
     createChannelMessageReplyPipeline: () => ({
       onModelSelected: () => {},
       responsePrefix: undefined,
@@ -275,6 +284,68 @@ describe("processMessage group system prompt wiring", () => {
         }
       ).groupSystemPrompt,
     ).toBe("from config");
+  });
+
+  it("injects persisted group history into the current mentioned turn", async () => {
+    resolvePolicyMock.mockReturnValue(makePolicy(makeAccount()));
+
+    await callProcessMessage({
+      msg: {
+        ...baseMsg,
+        body: "@Nauter pode concluir a raspadinha?",
+      },
+    });
+
+    expect(
+      (
+        mockCallArg(buildContextMock, "buildWhatsAppInboundContext") as {
+          combinedBody?: string;
+        }
+      ).combinedBody,
+    ).toBe("hi");
+
+    buildContextMock.mockClear();
+    await processMessage({
+      cfg: {} as never,
+      msg: {
+        ...baseMsg,
+        body: "@Nauter pode concluir a raspadinha?",
+      } as never,
+      route: baseRoute as never,
+      groupHistoryKey: "whatsapp:default:group:123@g.us",
+      groupHistories: new Map([
+        [
+          "whatsapp:default:group:123@g.us",
+          [
+            {
+              sender: "Rafael (+24752500506773)",
+              body: "Estamos falando da CTech, web e mobile concluido",
+              timestamp: 1710000000,
+            },
+          ],
+        ],
+      ]),
+      groupMemberNames: new Map(),
+      connectionId: "conn-1",
+      verbose: false,
+      maxMediaBytes: 1024,
+      replyResolver: (async () => undefined) as never,
+      replyLogger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} } as never,
+      backgroundTasks: new Set(),
+      rememberSentText: () => {},
+      echoHas: () => false,
+      echoForget: () => {},
+      buildCombinedEchoKey: ({ sessionKey }) => sessionKey,
+    });
+
+    const body = (
+      mockCallArg(buildContextMock, "buildWhatsAppInboundContext") as {
+        combinedBody?: string;
+      }
+    ).combinedBody;
+    expect(body).toContain("[Chat messages since your last reply - for context]");
+    expect(body).toContain("Rafael (+24752500506773): Estamos falando da CTech");
+    expect(body).toContain("[Current message - respond to this]");
   });
 
   it("marks detected WhatsApp slash messages as text command turns", async () => {

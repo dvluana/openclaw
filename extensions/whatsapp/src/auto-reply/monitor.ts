@@ -45,6 +45,7 @@ import { whatsappHeartbeatLog, whatsappLog } from "./loggers.js";
 import { buildMentionConfig } from "./mentions.js";
 import { createWebChannelStatusController } from "./monitor-state.js";
 import { createEchoTracker } from "./monitor/echo.js";
+import { createWhatsAppGroupHistoryStore } from "./monitor/inbound-context.js";
 import { formatWhatsAppInboundListeningLog } from "./monitor/listener-log.js";
 import { createWebOnMessageHandler } from "./monitor/on-message.js";
 import type { WebInboundMsg, WebMonitorTuning } from "./types.js";
@@ -234,6 +235,14 @@ export async function monitorWebChannel(
       senderJid?: string;
     }>
   >();
+  const groupHistoryStore = createWhatsAppGroupHistoryStore({
+    accountId: account.accountId,
+    limit: groupHistoryLimit,
+  });
+  const persistedGroupHistories = await groupHistoryStore.load();
+  for (const [key, entries] of persistedGroupHistories.entries()) {
+    groupHistories.set(key, entries);
+  }
   const groupMemberNames = new Map<string, Map<string, string>>();
   const groupMetadataCache: WhatsAppGroupMetadataCache = new Map();
   const echoTracker = createEchoTracker({ maxItems: 100, logVerbose });
@@ -317,6 +326,7 @@ export async function monitorWebChannel(
               maxMediaBytes,
               groupHistoryLimit,
               groupHistories,
+              groupHistoryStore,
               groupMemberNames,
               echoTracker,
               backgroundTasks: connection.backgroundTasks,

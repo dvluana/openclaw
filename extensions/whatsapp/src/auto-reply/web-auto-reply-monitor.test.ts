@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WhatsAppSendResult } from "../inbound/send-result.js";
 import { buildMentionConfig } from "./mentions.js";
 import { applyGroupGating, type GroupHistoryEntry } from "./monitor/group-gating.js";
+import type { GroupHistoryStore } from "./monitor/inbound-context.js";
 import { formatWhatsAppInboundListeningLog } from "./monitor/listener-log.js";
 import { buildInboundLine, formatReplyContext } from "./monitor/message-line.js";
 import type { WebInboundMsg } from "./types.js";
@@ -54,6 +55,7 @@ async function runGroupGating(params: {
   agentId?: string;
   selfChatMode?: boolean;
   authDir?: string;
+  groupHistoryStore?: GroupHistoryStore;
 }) {
   const groupHistories = new Map<string, GroupHistoryEntry[]>();
   const conversationId = params.conversationId ?? "123@g.us";
@@ -72,6 +74,7 @@ async function runGroupGating(params: {
     authDir: params.authDir,
     selfChatMode: params.selfChatMode,
     groupHistories,
+    groupHistoryStore: params.groupHistoryStore,
     groupHistoryLimit: 10,
     groupMemberNames: new Map(),
     logVerbose: (message) => verboseLogs.push(message),
@@ -168,6 +171,124 @@ describe("WhatsApp listener diagnostics", () => {
 });
 
 describe("applyGroupGating", () => {
+  it("processes Luana mentioning Nauter in UXN Design", async () => {
+    const cfg = makeConfig({
+      channels: {
+        whatsapp: {
+          groupPolicy: "allowlist",
+          groups: {
+            "120363075763910564@g.us": {
+              requireMention: true,
+            },
+          },
+        },
+      },
+      messages: {
+        groupChat: {
+          mentionPatterns: ["Nauter", "Nauter Caramelo"],
+        },
+      },
+    });
+
+    const { result } = await runGroupGating({
+      cfg,
+      conversationId: "120363075763910564@g.us",
+      msg: createGroupMessage({
+        id: "uxn-luana-ctech",
+        from: "120363075763910564@g.us",
+        conversationId: "120363075763910564@g.us",
+        chatId: "120363075763910564@g.us",
+        body: "@Nauter retomando CTech, quais cards voce encontrou?",
+        senderName: "Luana UXN",
+        senderE164: "+554788348202",
+        senderJid: "43297682809060@lid",
+      }),
+    });
+
+    expect(result.shouldProcess).toBe(true);
+    expect(result.reason).toBe("group");
+  });
+
+  it("processes Rafael mentioning Nauter in UXN Design", async () => {
+    const cfg = makeConfig({
+      channels: {
+        whatsapp: {
+          groupPolicy: "allowlist",
+          groups: {
+            "120363075763910564@g.us": {
+              requireMention: true,
+            },
+          },
+        },
+      },
+      messages: {
+        groupChat: {
+          mentionPatterns: ["Nauter", "Nauter Caramelo"],
+        },
+      },
+    });
+
+    const { result } = await runGroupGating({
+      cfg,
+      conversationId: "120363075763910564@g.us",
+      msg: createGroupMessage({
+        id: "uxn-rafa-ctech",
+        from: "120363075763910564@g.us",
+        conversationId: "120363075763910564@g.us",
+        chatId: "120363075763910564@g.us",
+        body: "@Nauter essa task de raspadinha / roleta pode ser definida como concluida",
+        senderName: "Rafael Silva",
+        senderE164: "+554784224636",
+        senderJid: "554784224636@s.whatsapp.net",
+      }),
+    });
+
+    expect(result.shouldProcess).toBe(true);
+    expect(result.reason).toBe("group");
+  });
+
+  it("stores Rafael context in UXN Design without replying when Nauter is not mentioned", async () => {
+    const cfg = makeConfig({
+      channels: {
+        whatsapp: {
+          groupPolicy: "allowlist",
+          groups: {
+            "120363075763910564@g.us": {
+              requireMention: true,
+            },
+          },
+        },
+      },
+      messages: {
+        groupChat: {
+          mentionPatterns: ["Nauter", "Nauter Caramelo"],
+        },
+      },
+    });
+    const { result, groupHistories } = await runGroupGating({
+      cfg,
+      conversationId: "120363075763910564@g.us",
+      msg: createGroupMessage({
+        id: "uxn-rafa-context",
+        from: "120363075763910564@g.us",
+        conversationId: "120363075763910564@g.us",
+        chatId: "120363075763910564@g.us",
+        body: "web e mobile da roleta ja foram concluidos",
+        senderName: "Rafael Silva",
+        senderE164: "+554784224636",
+        senderJid: "554784224636@s.whatsapp.net",
+      }),
+    });
+
+    expect(result.shouldProcess).toBe(false);
+    expect(groupHistories.get("whatsapp:default:group:120363075763910564@g.us")).toMatchObject([
+      {
+        sender: "Rafael Silva (+554784224636)",
+        body: "web e mobile da roleta ja foram concluidos",
+      },
+    ]);
+  });
+
   it("treats reply-to-bot as implicit mention", async () => {
     const cfg = makeConfig({});
     const { result } = await runGroupGating({
@@ -539,6 +660,65 @@ describe("applyGroupGating", () => {
 
     expect(result.shouldProcess).toBe(false);
     expect(groupHistories.get("whatsapp:default:group:123@g.us")?.length).toBe(1);
+  });
+
+  it("persists unmentioned group messages for later mentioned turns", async () => {
+    const saved: GroupHistoryEntry[][] = [];
+    const groupHistoryStore: GroupHistoryStore = {
+      load: async () => new Map(),
+      save: async (history) => {
+        saved.push([...(history.get("whatsapp:default:group:123@g.us") ?? [])]);
+      },
+    };
+
+    const { result, groupHistories } = await runGroupGating({
+      cfg: makeConfig({
+        messages: { groupChat: { mentionPatterns: ["\\bNauter\\b"] } },
+      }),
+      groupHistoryStore,
+      msg: createGroupMessage({
+        id: "rafa-context",
+        body: "Rafael: estamos falando da CTech e da raspadinha",
+        senderName: "Rafael",
+        senderE164: "+24752500506773",
+      }),
+    });
+
+    expect(result.shouldProcess).toBe(false);
+    expect(groupHistories.get("whatsapp:default:group:123@g.us")).toEqual([
+      expect.objectContaining({
+        sender: "Rafael (+24752500506773)",
+        body: "Rafael: estamos falando da CTech e da raspadinha",
+        id: "rafa-context",
+      }),
+    ]);
+    expect(saved.at(-1)).toEqual(groupHistories.get("whatsapp:default:group:123@g.us"));
+  });
+
+  it("does not store media-only placeholders as group context", async () => {
+    const saved: GroupHistoryEntry[][] = [];
+    const groupHistoryStore: GroupHistoryStore = {
+      load: async () => new Map(),
+      save: async (history) => {
+        saved.push([...(history.get("whatsapp:default:group:123@g.us") ?? [])]);
+      },
+    };
+
+    const { result, groupHistories } = await runGroupGating({
+      cfg: makeConfig({}),
+      groupHistoryStore,
+      msg: createGroupMessage({
+        id: "sticker-context",
+        body: "<media:sticker>",
+        mediaType: "image/webp",
+        senderName: "Rafael",
+        senderE164: "+24752500506773",
+      }),
+    });
+
+    expect(result.shouldProcess).toBe(false);
+    expect(groupHistories.get("whatsapp:default:group:123@g.us")).toBeUndefined();
+    expect(saved).toEqual([]);
   });
 
   it("uses per-agent mention patterns for group gating (routing + mentionPatterns)", async () => {

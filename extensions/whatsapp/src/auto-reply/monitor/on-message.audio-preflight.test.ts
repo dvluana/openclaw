@@ -6,6 +6,7 @@ const maybeSendAckReactionMock = vi.fn();
 const processMessageMock = vi.fn();
 const maybeBroadcastMessageMock = vi.fn();
 const createStatusReactionControllerMock = vi.fn();
+const recordGroupHistoryEntryMock = vi.fn();
 const statusReactionController = {
   setQueued: vi.fn(async () => {
     events.push("status-queued");
@@ -49,6 +50,7 @@ vi.mock("./status-reaction.js", () => ({
 
 vi.mock("./group-gating.js", () => ({
   applyGroupGating: (...args: unknown[]) => applyGroupGatingMock(...args),
+  recordGroupHistoryEntry: (...args: unknown[]) => recordGroupHistoryEntryMock(...args),
 }));
 
 vi.mock("./last-route.js", () => ({
@@ -164,6 +166,7 @@ describe("createWebOnMessageHandler audio preflight", () => {
     Object.values(statusReactionController).forEach((mock) => mock.mockClear());
     applyGroupGatingMock.mockReset();
     applyGroupGatingMock.mockResolvedValue({ shouldProcess: true });
+    recordGroupHistoryEntryMock.mockReset();
   });
 
   it("sends ack reaction before audio preflight for voice notes", async () => {
@@ -202,6 +205,57 @@ describe("createWebOnMessageHandler audio preflight", () => {
     expect(processParams.preflightAudioTranscript).toBe("transcribed voice note");
     expect(processParams.ackAlreadySent).toBe(true);
     expect(processParams.ackReaction).toBe(ackReactionHandle);
+  });
+
+  it("stores mentioned group messages after mention gating passes", async () => {
+    const groupHistoryStore = { load: vi.fn(), save: vi.fn() };
+    const handler = createWebOnMessageHandler({
+      cfg: {
+        channels: {
+          whatsapp: {
+            groups: { "*": { requireMention: true } },
+          },
+        },
+      } as never,
+      verbose: false,
+      connectionId: "conn-1",
+      maxMediaBytes: 1024 * 1024,
+      groupHistoryLimit: 20,
+      groupHistories: new Map(),
+      groupHistoryStore,
+      groupMemberNames: new Map(),
+      echoTracker: makeEchoTracker() as never,
+      backgroundTasks: new Set(),
+      replyResolver: vi.fn() as never,
+      replyLogger: {
+        info: () => {},
+        warn: () => {},
+        debug: () => {},
+      } as never,
+      baseMentionConfig: {} as never,
+      account: { accountId: "default" },
+    });
+
+    await handler({
+      ...makeGroupAudioMsg(),
+      id: "ctech-mentioned",
+      body: "@Nauter estamos falando da CTech",
+      mediaType: undefined,
+      mediaPath: undefined,
+    });
+
+    expect(recordGroupHistoryEntryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        msg: expect.objectContaining({
+          id: "ctech-mentioned",
+          body: "@Nauter estamos falando da CTech",
+        }),
+        groupHistoryStore,
+        groupHistoryKey: "group-key",
+        groupHistoryLimit: 20,
+      }),
+    );
+    expect(processMessageMock).toHaveBeenCalled();
   });
 
   it("sends queued status reaction before audio preflight when status reactions are enabled", async () => {

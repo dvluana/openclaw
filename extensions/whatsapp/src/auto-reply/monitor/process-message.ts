@@ -321,7 +321,10 @@ export async function processMessage(params: {
         },
       });
     }
-    shouldClearGroupHistory = !(params.suppressGroupHistoryClear ?? false);
+    // Keep group history as a rolling context window. Mention-gated groups still
+    // only trigger when explicitly called, but the next mention should include
+    // recent unmentioned chatter instead of forgetting it after every reply.
+    shouldClearGroupHistory = false;
   }
 
   // Echo detection uses combined body so we don't respond twice.
