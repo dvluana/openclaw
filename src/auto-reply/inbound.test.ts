@@ -933,6 +933,10 @@ describe("mention helpers", () => {
     expect(normalizeMentionText("open\u200bclaw")).toBe("openclaw");
   });
 
+  it("normalizes WhatsApp directionality markers around contact mentions", () => {
+    expect(normalizeMentionText("@\u2068Nauter Caramelo\u2069")).toBe("@nauter caramelo");
+  });
+
   it("matches patterns case-insensitively", () => {
     const regexes = buildMentionRegexes({
       messages: { groupChat: { mentionPatterns: ["\\bopenclaw\\b"] } },

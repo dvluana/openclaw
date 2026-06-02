@@ -1,6 +1,6 @@
 import type { proto } from "baileys";
 import { describe, expect, it } from "vitest";
-import { extractMentionedJids, hasInboundUserContent } from "./extract.js";
+import { extractMentionedJids, extractText, hasInboundUserContent } from "./extract.js";
 
 describe("extractMentionedJids", () => {
   const botJid = "5511999999999@s.whatsapp.net";
@@ -15,6 +15,24 @@ describe("extractMentionedJids", () => {
         },
       },
     };
+    expect(extractMentionedJids(message)).toEqual([botJid]);
+  });
+
+  it("returns mentions from edited protocol messages", () => {
+    const message: proto.IMessage = {
+      protocolMessage: {
+        type: 14,
+        editedMessage: {
+          extendedTextMessage: {
+            text: "Hey @bot",
+            contextInfo: {
+              mentionedJid: [botJid],
+            },
+          },
+        },
+      } as unknown as proto.Message.IProtocolMessage,
+    };
+
     expect(extractMentionedJids(message)).toEqual([botJid]);
   });
 
@@ -254,6 +272,35 @@ describe("hasInboundUserContent", () => {
         } as unknown as proto.Message.IProtocolMessage,
       } as proto.IMessage),
     ).toBe(false);
+  });
+
+  it("returns true for protocol message edits with inner user content", () => {
+    const message = {
+      protocolMessage: {
+        type: 14,
+        editedMessage: {
+          extendedTextMessage: {
+            text: "@Nauter Caramelo Remova a task",
+          },
+        },
+      },
+    } as unknown as proto.IMessage;
+
+    expect(hasInboundUserContent(message)).toBe(true);
+    expect(extractText(message)).toBe("@Nauter Caramelo Remova a task");
+  });
+
+  it("returns true for top-level edited messages with inner user content", () => {
+    const message = {
+      editedMessage: {
+        message: {
+          conversation: "edited body",
+        },
+      },
+    } as unknown as proto.IMessage;
+
+    expect(hasInboundUserContent(message)).toBe(true);
+    expect(extractText(message)).toBe("edited body");
   });
 
   it("returns false for receipt-style senderKeyDistribution-only payload (regression for #73797)", () => {

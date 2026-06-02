@@ -18,6 +18,22 @@ const MESSAGE_WRAPPER_KEYS = [
   "groupMentionedMessage",
 ] as const;
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+}
+
+function unwrapEditedMessage(value: unknown): proto.IMessage | undefined {
+  const candidate = asRecord(value);
+  if (!candidate) {
+    return undefined;
+  }
+  const futureProofInner = asRecord(candidate.message);
+  if (futureProofInner) {
+    return futureProofInner as proto.IMessage;
+  }
+  return candidate as proto.IMessage;
+}
+
 const MESSAGE_CONTENT_KEYS = [
   "conversation",
   "extendedTextMessage",
@@ -44,8 +60,21 @@ function fallbackNormalizeMessageContent(
   let current = message as unknown;
   while (current && typeof current === "object") {
     let unwrapped = false;
+    const currentRecord = current as Record<string, unknown>;
+    const protocolEdited = unwrapEditedMessage(
+      asRecord(currentRecord.protocolMessage)?.editedMessage,
+    );
+    if (protocolEdited) {
+      current = protocolEdited;
+      continue;
+    }
+    const directEdited = unwrapEditedMessage(currentRecord.editedMessage);
+    if (directEdited) {
+      current = directEdited;
+      continue;
+    }
     for (const key of MESSAGE_WRAPPER_KEYS) {
-      const candidate = (current as Record<string, unknown>)[key];
+      const candidate = currentRecord[key];
       if (
         candidate &&
         typeof candidate === "object" &&
@@ -66,7 +95,7 @@ function fallbackNormalizeMessageContent(
 
 function normalizeMessage(message: proto.IMessage | undefined): proto.IMessage | undefined {
   if (typeof normalizeMessageContent === "function") {
-    return normalizeMessageContent(message);
+    return fallbackNormalizeMessageContent(normalizeMessageContent(message));
   }
   return fallbackNormalizeMessageContent(message);
 }
